@@ -33,7 +33,7 @@ def update_fcfs(clock, current_process, ready_queue, io_queue, stopped, first_id
         print("               None")
     else:
         for process in ready_queue:
-            print("               {}        {}".format(process.name, process.current_burst))
+            print("               {}         {}".format(process.name, process.current_burst))
     print("\n---------------------------------------------------")
     print("\nI/O Queue:     Process    Remaining I/O Time")
     if not io_queue:
