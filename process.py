@@ -11,6 +11,28 @@ tq_dict = {
 
 @functools.total_ordering
 class Process:
+    """"
+    Process object to model a process on an operating system
+
+    :param burst_times: List of all the burst times for a given process
+    :param io_times: List of all the io times for a give process
+    :param current_burst: The current burst time
+    :param current_io: The current IO time
+    :param state: The state of the process
+    :param next_arrival_time: The calculated next arrival time
+    :param burst_time: The sum of all the burst times
+    :param completion_times: List of all the times the process goes from State.READY -> State.IO | State.STOPPED
+    :param arrival_times: List of all the arrival times
+    :param tat: The turnaround time of the process, calculated on entering State.STOPPED
+    :param name: The name of the process
+    :param waiting_time: The calculated wait time
+    :param response_time: The calculated response time
+    :param ran_once: True if process has begun execution at least once, false otherwise
+
+    MLFQ specific attributes
+    :param tq_tier: The time quantum tier of the process, chosen out of [1, 2, 3]
+    :param tq_length: The length of the time quantum
+    """
     def __init__(self, burst_times, io_times, name, state=State.READY, arrival_time=0, tq=False):
         self.burst_times = deque(burst_times)
         self.io_times = deque(io_times)
@@ -24,6 +46,8 @@ class Process:
         self.tat = 0
         self.name = name
         self.waiting_time = 0
+        self.response_time = 0
+        self.ran_once = 0
         if tq:
             self.tq_tier = 1
             self.tq_length = tq_dict[1]
@@ -50,6 +74,9 @@ class Process:
         """
         self.next_arrival_time = current_time + self.current_burst + self.current_io
         self.arrival_times.append(self.next_arrival_time)
+        if self.ran_once == 0:
+            self.response_time = current_time
+            self.ran_once = 1
 
     def set_burst_io(self):
         """

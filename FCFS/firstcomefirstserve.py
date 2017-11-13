@@ -1,7 +1,20 @@
 from collections import deque
-from printupdate import update
+from printupdate import update_fcfs as update
 from process import Process
 from state import State
+
+
+def find_lowest_io(io):
+    """
+    Check if the main queue for MLFQ is empty
+    :param io: List of queues
+    :return: True if empty, False if contains item
+    """
+    lowest_io = 999
+    for p in io:
+        if p.current_io < lowest_io:
+            lowest_io = p.current_io
+    return lowest_io
 
 
 status = State.RUNNING
@@ -23,20 +36,33 @@ process_list = [P1, P2, P3, P4, P5, P6, P7, P8]
 ready_queue.extend(process_list)
 
 io_queue = []
+stopped = []
 
+idle_time = 0
 clock = 0
+idle = 0
 current_process = None
+lowest_io = 0
 
 while status is State.RUNNING:
     # If loop has just begun, assign new process to CPU and set arrival times
     if clock == 0 or current_process is None:
         if not ready_queue and io_queue:
             current_process = None
+            idle_time += 1
+            if idle:
+                update(clock, current_process, ready_queue, io_queue, stopped, first_idle=True)
+                idle = 0
         else:
+            # Reset lowest IO to ensure we don't reprint the context of an idle process which
+            # has already been printed to screen
+            lowest_io = 0
+            idle = 0
             current_process = ready_queue.popleft()
             current_process.state = State.EXECUTING
             current_process.set_arrival(clock)
-            update(clock, current_process, ready_queue, io_queue)
+            # Update the context switch
+            update(clock, current_process, ready_queue, io_queue, stopped)
 
     for process in process_list:
         if process.state is State.EXECUTING:
@@ -49,6 +75,7 @@ while status is State.RUNNING:
                     process.current_io -= 1
                 else:
                     process.state = State.STOPPED
+                    stopped.append(process.name)
                     process.set_tat()
                 current_process = None
         elif process.state is State.IO:
@@ -65,17 +92,33 @@ while status is State.RUNNING:
 
     clock += 1
 
+    if not current_process and not idle and not ready_queue:
+        if find_lowest_io(io_queue) > lowest_io:
+            # A check to see if the process has been idle or not
+            lowest_io = find_lowest_io(io_queue)
+            idle = 1
+
     if not ready_queue and not current_process and not io_queue:
         status = State.COMPLETE
-        print("We good")
 
+tat_list = []
+rt_list = []
+wt_list = []
 
-print("DONE")
-i = 8
 for process in process_list:
-    # print("Process {} TaT time is: {}".format(i, process.arrival_times))
-    # print("Sum of process {} arrival times are: {}".format(i, process.arrival_times))
-    # print("Process {} service times are: {}".format(i, process.service_time))
-    # print("Sum of process {} service times are: {}".format(i, process.service_time))
-    print("Average wait time for process {} was {} clocks".format(i, process.tat - process.burst_time))
-    i -= 1
+    tat_list.append(process.tat)
+    rt_list.append(process.response_time)
+    wt_list.append(process.waiting_time)
+
+print("Complete!\n")
+print("Total Time:         {}".format(clock))
+print("CPU Utilization:    {:%}".format((clock-idle_time)/clock))
+print("Waiting Times       P1    P2    P3    P4    P5    P6    P7    P8")
+print("                    {:<6}{:<6}{:<6}{:<6}{:<6}{:<6}{:<6}{:<6}".format(*wt_list))
+print("Average Wait:       {}\n".format(sum(wt_list)/8))
+print("Turnaround Times    P1    P2    P3    P4    P5    P6    P7    P8")
+print("                    {:<6}{:<6}{:<6}{:<6}{:<6}{:<6}{:<6}{:<6}".format(*tat_list))
+print("Average Turnaround: {}\n".format(sum(tat_list) / 8))
+print("Response Times      P1    P2    P3    P4    P5    P6    P7    P8")
+print("                    {:<6}{:<6}{:<6}{:<6}{:<6}{:<6}{:<6}{:<6}".format(*rt_list))
+print("Average Response:   {}".format(sum(rt_list) / 8))

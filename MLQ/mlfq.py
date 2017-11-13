@@ -1,11 +1,31 @@
 from collections import deque
-from printupdate import update
+from printupdate import update_mlfq as update
 from process import Process
 from state import State
 from process import tq_dict
 
 
+def find_lowest_io(io):
+    """
+    Finds the process with the lowest IO time remaining from within the io_queue
+
+    :param io: io_queue containing all process in State.IO
+    :return: Lowest io time
+    """
+    lowest_io = 999
+    for p in io:
+        if p.current_io < lowest_io:
+            lowest_io = p.current_io
+    return lowest_io
+
+
 def check_empty(queue):
+    """
+    Check if the main queue for MLFQ is empty
+
+    :param queue: List of queues
+    :return: True if empty, False if contains item
+    """
     for q in queue:
         if q:
             return False
@@ -13,12 +33,25 @@ def check_empty(queue):
 
 
 def pop_left_mlfq(queue):
+    """
+    Same as pop_left for a deque() object, but works for a list of deque() objects
+
+    :param queue: The main queue containing all processes in State.READY
+    :return: Next process in the queue
+    """
     for q in queue:
         if q:
             return q.popleft()
 
 
 def higher_priority_check(current_p, p):
+    """
+    Checks if priority of current_p is higher or lower than p
+
+    :param current_p: The current process
+    :param p: Process to compare against
+    :return: True if current_p has higher priority, False otherwise
+    """
     if current_p is None:
         return False
     if current_p.tq_tier > p.tq_tier:
@@ -49,28 +82,30 @@ process_list = [P1, P2, P3, P4, P5, P6, P7, P8]
 ready_queue_1.extend(process_list)
 
 io_queue = []
+stopped = []
 
+idle_time = 0
 clock = 0
+idle = 0
 current_process = None
+lowest_io = 0
 
 while status is State.RUNNING:
     # If loop has just begun, assign new process to CPU and set arrival times
     if clock == 0 or current_process is None:
         if check_empty(main_queue) and io_queue:
             current_process = None
+            idle_time += 1
+            if idle:
+                update(clock, current_process, main_queue, io_queue, stopped, first_idle=True)
+                idle = 0
         else:
+            lowest_io = 0
+            idle = 0
             current_process = pop_left_mlfq(main_queue)
-            print(clock)
-            print(current_process.name)
-            print('-------------------')
             current_process.state = State.EXECUTING
             current_process.set_arrival(clock)
-            for item in process_list:
-                if item.state is State.READY:
-                    print('{} has {}s of burst left'.format(item.name, item.current_burst))
-
-    if clock % 4 == 0:
-        print('')
+            update(clock, current_process, main_queue, io_queue, stopped)
     for process in process_list:
         if process.state is State.EXECUTING:
             process.current_burst -= 1
@@ -84,6 +119,7 @@ while status is State.RUNNING:
                     io_queue.append(process)
                 else:
                     process.state = State.STOPPED
+                    stopped.append(process.name)
                     process.set_tat()
                 current_process = None
             elif process.tq_length <= 0:
@@ -102,6 +138,8 @@ while status is State.RUNNING:
                 if process.state is not State.STOPPED:
                     main_queue[process.tq_tier - 1].append(process)
                 if higher_priority_check(current_process, process):
+                    # Reset the tq_length back to what it should be based on it's tq_tier
+                    # and add back to the main_queue
                     current_process.state = State.READY
                     current_process.tq_length = tq_dict[current_process.tq_tier]
                     main_queue[current_process.tq_tier - 1].append(current_process)
@@ -110,18 +148,34 @@ while status is State.RUNNING:
             process.waiting_time += 1
 
     clock += 1
+
+    if not current_process and not idle and check_empty(main_queue):
+        if find_lowest_io(io_queue) > lowest_io:
+            # A check to see if the process has been idle or not
+            lowest_io = find_lowest_io(io_queue)
+            idle = 1
+
     if check_empty(main_queue) and not current_process and not io_queue:
         status = State.COMPLETE
-        print("We good")
 
+tat_list = []
+rt_list = []
+wt_list = []
 
-print("DONE")
-i = 8
-print(clock)
 for process in process_list:
-    # print("Process {} TaT time is: {}".format(i, process.arrival_times))
-    # print("Sum of process {} arrival times are: {}".format(i, process.arrival_times))
-    # print("Process {} service times are: {}".format(i, process.service_time))
-    # print("Sum of process {} service times are: {}".format(i, process.service_time))
-    print("Average wait time for process {} was {} clocks".format(i, process.tat - process.burst_time))
-    i -= 1
+    tat_list.append(process.tat)
+    rt_list.append(process.response_time)
+    wt_list.append(process.waiting_time)
+
+print("Complete!\n")
+print("Total Time:         {}".format(clock))
+print("CPU Utilization:    {:%}\n".format((clock-idle_time)/clock))
+print("Waiting Times       P1    P2    P3    P4    P5    P6    P7    P8")
+print("                    {:<6}{:<6}{:<6}{:<6}{:<6}{:<6}{:<6}{:<6}".format(*wt_list))
+print("Average Wait:       {}\n".format(sum(wt_list)/8))
+print("Turnaround Times    P1    P2    P3    P4    P5    P6    P7    P8")
+print("                    {:<6}{:<6}{:<6}{:<6}{:<6}{:<6}{:<6}{:<6}".format(*tat_list))
+print("Average Turnaround: {}\n".format(sum(tat_list) / 8))
+print("Response Times      P1    P2    P3    P4    P5    P6    P7    P8")
+print("                    {:<6}{:<6}{:<6}{:<6}{:<6}{:<6}{:<6}{:<6}".format(*rt_list))
+print("Average Response:   {}\n".format(sum(rt_list) / 8))
