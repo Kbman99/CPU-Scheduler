@@ -105,6 +105,7 @@ class Process:
     def set_next_tq(self):
         """
         MLFQ ONLY- Runs if the process time quantum goes below 0
+
         :return:
         """
         if self.tq_tier != 3:
