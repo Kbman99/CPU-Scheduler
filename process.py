@@ -82,7 +82,8 @@ class Process:
         """
         Runs once the process IO time hits 0 or enters the waiting/ready state
 
-        Sets the current CPU burst and IO times to the next in the list
+        Sets the current CPU burst and IO times to the next in the list, if there are no more items in
+        the list then the process is complete and process State is set to STOPPED
 
         :return:
         """
